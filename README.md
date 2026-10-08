@@ -17,15 +17,3 @@ ChromaForge adalah instrumen bioinformatika berbasis Python untuk perakitan *con
 Simpan skrip `ChromaForge_Assembler.py` satu folder dengan file sampel `.ab1` Anda, lalu jalankan via CMD atau terminal:
 ```bash
 python ChromaForge_Assembler.py
-
-Umpan Balik Pengujian (Beta Feedback)
-Kami sangat menghargai evaluasi Anda terhadap performa algoritma ini. Jika Anda menemukan anomali resolusi konflik, kegagalan trimming, atau bug sistem saat memproses sampel kromatogram Anda, mohon laporkan melalui tautan berikut:
-Formulir Evaluasi Beta ChromaForge
-
-Identitas Pengembang
-Muhammad Aldiansyah Karisma
-
-Universitas Bengkulu (2026)
-
-Lisensi
-Proyek ini didistribusikan di bawah MIT License. Lihat file LICENSE untuk detail perlindungan hukum dan hak cipta.
