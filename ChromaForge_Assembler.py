@@ -5,8 +5,7 @@
 # Year: 2026
 # License: MIT License
 # Description: Automated script for resolving contig conflicts using Phred Q-scores.
-#              Includes ANSI colors, natural sorting, mismatch tracking, length filter,
-#              and visual alignment report generation for mismatches.
+#              Outputs dynamic FASTA files based on IUPAC ambiguity detection.
 # ==============================================================================
 
 import os
@@ -27,7 +26,18 @@ WARNA_BIRU = '\033[94m'
 WARNA_KUNING = '\033[93m'
 WARNA_ORANYE = '\033[38;5;208m'
 WARNA_MERAH = '\033[91m'
+WARNA_UNGU = '\033[95m'
 RESET_WARNA = '\033[0m'
+
+def dapatkan_kode_iupac(basa1, basa2):
+    kombinasi = set([basa1.upper(), basa2.upper()])
+    if kombinasi == {'A', 'G'}: return 'R'
+    if kombinasi == {'C', 'T'}: return 'Y'
+    if kombinasi == {'G', 'C'}: return 'S'
+    if kombinasi == {'A', 'T'}: return 'W'
+    if kombinasi == {'G', 'T'}: return 'K'
+    if kombinasi == {'A', 'C'}: return 'M'
+    return 'N'
 
 def robust_trim_masking_dan_evaluasi(record, window_size=5, threshold_q=20):
     quals = record.letter_annotations.get("phred_quality")
@@ -37,7 +47,6 @@ def robust_trim_masking_dan_evaluasi(record, window_size=5, threshold_q=20):
         return seq_str, 0.0, []
         
     length = len(quals)
-    
     start_idx = 0
     for i in range(length - window_size + 1):
         window = quals[i:i + window_size]
@@ -85,7 +94,8 @@ def bangun_strict_consensus(f_seq, r_seq, alignments, f_qual, r_qual):
         return None
         
     f_start_overlap = t_span[0][0]
-    consensus = list(f_seq[:f_start_overlap])
+    consensus_iupac = list(f_seq[:f_start_overlap])
+    consensus_pseudo = list(f_seq[:f_start_overlap])
     
     snp_count = 0
     log_mismatch = []
@@ -98,35 +108,67 @@ def bangun_strict_consensus(f_seq, r_seq, alignments, f_qual, r_qual):
             f_base = f_seq[f_idx]
             r_base = r_seq[q_idx]
             
+            posisi_contig = len(consensus_iupac) + 1
+            
             if f_base == r_base:
-                consensus.append(f_base)
+                consensus_iupac.append(f_base)
+                consensus_pseudo.append(f_base)
             else:
                 q_f = f_qual[f_idx] if f_qual else 0
                 q_r = r_qual[q_idx] if r_qual else 0
                 
                 if q_f > q_r + 10:
-                    consensus.append(f_base)
-                    log_mismatch.append(f"F[{f_idx}]/Rc[{q_idx}]")
+                    consensus_iupac.append(f_base)
+                    consensus_pseudo.append(f_base)
+                    log_mismatch.append(f"Contig[{posisi_contig}]:F[{f_idx}]/Rc[{q_idx}]")
                 elif q_r > q_f + 10:
-                    consensus.append(r_base)
-                    log_mismatch.append(f"F[{f_idx}]/Rc[{q_idx}]")
+                    consensus_iupac.append(r_base)
+                    consensus_pseudo.append(r_base)
+                    log_mismatch.append(f"Contig[{posisi_contig}]:F[{f_idx}]/Rc[{q_idx}]")
                 else:
-                    consensus.append('N')
-                    snp_count += 1
-                    log_mismatch.append(f"F[{f_idx}]/Rc[{q_idx}](N)")
+                    if q_f >= 30 and q_r >= 30:
+                        kode_iupac = dapatkan_kode_iupac(f_base, r_base)
+                        consensus_iupac.append(kode_iupac)
+                        basa_terpilih = f_base if q_f >= q_r else r_base
+                        consensus_pseudo.append(basa_terpilih)
+                        snp_count += 1
+                        log_mismatch.append(f"Contig[{posisi_contig}]:F[{f_idx}]/Rc[{q_idx}]({kode_iupac} -> PseudoPhased:{basa_terpilih})")
+                    else:
+                        consensus_iupac.append('N')
+                        consensus_pseudo.append('N')
+                        snp_count += 1
+                        log_mismatch.append(f"Contig[{posisi_contig}]:F[{f_idx}]/Rc[{q_idx}](N)")
                     
     r_end_overlap = q_span[-1][1]
-    consensus.extend(list(r_seq[r_end_overlap:]))
+    consensus_iupac.extend(list(r_seq[r_end_overlap:]))
+    consensus_pseudo.extend(list(r_seq[r_end_overlap:]))
     
-    return "".join(consensus), snp_count, log_mismatch
+    return "".join(consensus_iupac), "".join(consensus_pseudo), snp_count, log_mismatch
 
 def proses_sampel_dengan_aturan_lengkap(f_rec, r_rec, id_sampel, min_length=200):
-    f_proc, f_score, f_qual = robust_trim_masking_dan_evaluasi(f_rec)
-    r_proc, r_score, r_qual_raw = robust_trim_masking_dan_evaluasi(r_rec)
-    
     ambang_layak = 0.85 
     ambang_minimum = 0.70
     laporan_teks = None
+    
+    if f_rec and not r_rec:
+        f_proc, f_score, _ = robust_trim_masking_dan_evaluasi(f_rec)
+        if len(f_proc) < min_length:
+            print(f"    -> {WARNA_MERAH}[SKIPPED] Sekuen F tunggal terlalu pendek ({len(f_proc)} bp).{RESET_WARNA}")
+            return None, None, "SKIPPED", None
+        print(f"    -> {WARNA_KUNING}[Info] Hanya F tersedia. Diproses sebagai sekuen tunggal (Q: {f_score*100:.1f}%, Len: {len(f_proc)} bp).{RESET_WARNA}")
+        return Seq(f_proc), Seq(f_proc), f"Single Read F (Q: {f_score*100:.1f}%)", None
+
+    if r_rec and not f_rec:
+        r_proc, r_score, _ = robust_trim_masking_dan_evaluasi(r_rec)
+        if len(r_proc) < min_length:
+            print(f"    -> {WARNA_MERAH}[SKIPPED] Sekuen R tunggal terlalu pendek ({len(r_proc)} bp).{RESET_WARNA}")
+            return None, None, "SKIPPED", None
+        print(f"    -> {WARNA_KUNING}[Info] Hanya R tersedia. Diputar menjadi R-rc sebagai sekuen tunggal (Q: {r_score*100:.1f}%, Len: {len(r_proc)} bp).{RESET_WARNA}")
+        seq_r_rc = Seq(r_proc).reverse_complement()
+        return seq_r_rc, seq_r_rc, f"Single Read R-rc (Q: {r_score*100:.1f}%)", None
+        
+    f_proc, f_score, f_qual = robust_trim_masking_dan_evaluasi(f_rec)
+    r_proc, r_score, r_qual_raw = robust_trim_masking_dan_evaluasi(r_rec)
     
     f_layak = f_score >= ambang_layak
     r_layak = r_score >= ambang_layak
@@ -146,79 +188,127 @@ def proses_sampel_dengan_aturan_lengkap(f_rec, r_rec, id_sampel, min_length=200)
         if not alignments:
             if f_score >= r_score:
                 if len(f_proc) < min_length:
-                    print(f"    -> {WARNA_MERAH}[SKIPPED] Contig gagal, sisa F terlalu pendek ({len(f_proc)} bp).{RESET_WARNA}")
-                    return None, "SKIPPED", None
-                print(f"    -> {WARNA_KUNING}[Info] Contig gagal, fallback F (Q: {f_score*100:.1f}%, Len: {len(f_proc)} bp).{RESET_WARNA}")
-                return Seq(f_proc), f"Contig gagal, fallback F (Q: {f_score*100:.1f}%)", None
+                    print(f"    -> {WARNA_MERAH}[SKIPPED] Contig gagal, fallback F terlalu pendek ({len(f_proc)} bp).{RESET_WARNA}")
+                    return None, None, "SKIPPED", None
+                return Seq(f_proc), Seq(f_proc), f"Contig gagal, fallback F (Q: {f_score*100:.1f}%)", None
             else:
                 if len(r_proc) < min_length:
-                    print(f"    -> {WARNA_MERAH}[SKIPPED] Contig gagal, sisa R terlalu pendek ({len(r_proc)} bp).{RESET_WARNA}")
-                    return None, "SKIPPED", None
-                print(f"    -> {WARNA_KUNING}[Info] Contig gagal, fallback R-rc (Q: {r_score*100:.1f}%, Len: {len(r_proc)} bp).{RESET_WARNA}")
-                return Seq(r_rc), f"Contig gagal, fallback R-rc (Q: {r_score*100:.1f}%)", None
+                    print(f"    -> {WARNA_MERAH}[SKIPPED] Contig gagal, fallback R-rc terlalu pendek ({len(r_proc)} bp).{RESET_WARNA}")
+                    return None, None, "SKIPPED", None
+                seq_r_rc = Seq(r_rc)
+                return seq_r_rc, seq_r_rc, f"Contig gagal, fallback R-rc (Q: {r_score*100:.1f}%)", None
                 
         hasil_consensus = bangun_strict_consensus(f_proc, r_rc, alignments, f_qual, r_qual_rc)
         
         if hasil_consensus:
-            seq_final, snp_total, log_mismatch = hasil_consensus
+            seq_final_iupac, seq_final_pseudo, snp_total, log_mismatch = hasil_consensus
             
-            if len(seq_final) < min_length:
-                print(f"    -> {WARNA_MERAH}[SKIPPED] Contig terlalu pendek ({len(seq_final)} bp). Cek manual.{RESET_WARNA}")
-                return None, "SKIPPED", None
+            if len(seq_final_iupac) < min_length:
+                print(f"    -> {WARNA_MERAH}[SKIPPED] Contig terlalu pendek ({len(seq_final_iupac)} bp). Cek manual.{RESET_WARNA}")
+                return None, None, "SKIPPED", None
                 
             if log_mismatch:
                 mismatch_str = ", ".join(log_mismatch)
                 status = f"Contig Strict (Mismatch: {len(log_mismatch)} titik -> Posisi: {mismatch_str})"
-                
-                # Membangun string laporan visual untuk Mismatch
-                laporan_teks = f"=================================================================\n"
-                laporan_teks += f"SAMPEL: {id_sampel}\n"
-                laporan_teks += f"STATUS: Ditemukan {len(log_mismatch)} titik Mismatch/Konflik\n"
-                laporan_teks += f"POSISI (Indeks Pasca-Trimming): {mismatch_str}\n"
-                laporan_teks += f"-----------------------------------------------------------------\n"
-                laporan_teks += f"VISUALISASI ALIGNMENT (Atas: Forward, Bawah: Reverse-Complement):\n\n"
-                laporan_teks += str(alignments[0])
-                laporan_teks += f"\n=================================================================\n\n"
+                laporan_teks = f"SAMPEL: {id_sampel}\nPOSISI: {mismatch_str}\n\n{str(alignments[0])}\n\n"
             else:
                 status = "Contig Strict (Identik Sempurna)"
                 
-            print(f"    -> {WARNA_BIRU}[OK] {status} (Len: {len(seq_final)} bp){RESET_WARNA}")
-            return Seq(seq_final), status, laporan_teks
+            if str(seq_final_iupac) != str(seq_final_pseudo):
+                print(f"    -> {WARNA_UNGU}[IUPAC] {status} (Len: {len(seq_final_iupac)} bp){RESET_WARNA}")
+            else:
+                print(f"    -> {WARNA_BIRU}[OK] {status} (Len: {len(seq_final_iupac)} bp){RESET_WARNA}")
+                
+            return Seq(seq_final_iupac), Seq(seq_final_pseudo), status, laporan_teks
             
-        return Seq(f_proc), f"Contig fallback F", None
-        
-    elif f_layak and not r_layak:
+        return Seq(f_proc), Seq(f_proc), f"Contig fallback F", None
+    elif f_layak:
         if len(f_proc) < min_length:
-            print(f"    -> {WARNA_MERAH}[SKIPPED] R rusak, sisa F terlalu pendek ({len(f_proc)} bp).{RESET_WARNA}")
-            return None, "SKIPPED", None
-        print(f"    -> {WARNA_KUNING}[Info] R kurang layak. Pakai F saja (Q: {f_score*100:.1f}%, Len: {len(f_proc)} bp).{RESET_WARNA}")
-        return Seq(f_proc), f"Hanya F (F layak: {f_score*100:.1f}%)", None
-        
-    elif not f_layak and r_layak:
+            print(f"    -> {WARNA_MERAH}[SKIPPED] Hanya F layak namun terlalu pendek ({len(f_proc)} bp).{RESET_WARNA}")
+            return None, None, "SKIPPED", None
+        print(f"    -> {WARNA_KUNING}[Info] Hanya F layak (Q: {f_score*100:.1f}%, Len: {len(f_proc)} bp).{RESET_WARNA}")
+        return Seq(f_proc), Seq(f_proc), f"Hanya F (F layak: {f_score*100:.1f}%)", None
+    elif r_layak:
         if len(r_proc) < min_length:
-            print(f"    -> {WARNA_MERAH}[SKIPPED] F rusak, sisa R terlalu pendek ({len(r_proc)} bp).{RESET_WARNA}")
-            return None, "SKIPPED", None
-        print(f"    -> {WARNA_KUNING}[Info] F kurang layak. Pakai R-rc saja (Q: {r_score*100:.1f}%, Len: {len(r_proc)} bp).{RESET_WARNA}")
-        return Seq(r_proc).reverse_complement(), f"Hanya R-rc (R layak: {r_score*100:.1f}%)", None
-        
+            print(f"    -> {WARNA_MERAH}[SKIPPED] Hanya R layak namun terlalu pendek ({len(r_proc)} bp).{RESET_WARNA}")
+            return None, None, "SKIPPED", None
+        print(f"    -> {WARNA_KUNING}[Info] Hanya R layak (Q: {r_score*100:.1f}%, Len: {len(r_proc)} bp).{RESET_WARNA}")
+        seq_r_rc = Seq(r_proc).reverse_complement()
+        return seq_r_rc, seq_r_rc, f"Hanya R-rc (R layak: {r_score*100:.1f}%)", None
     else:
-        tertinggi = max(f_score, r_score)
-        if tertinggi < ambang_minimum:
-            print(f"    -> {WARNA_MERAH}[SKIPPED] Kualitas F dan R sangat buruk (< 70%). Cek manual.{RESET_WARNA}")
-            return None, "SKIPPED", None
-            
         if f_score >= r_score:
-            if len(f_proc) < min_length:
-                print(f"    -> {WARNA_MERAH}[SKIPPED] F dan R < 85%, sisa F terlalu pendek ({len(f_proc)} bp).{RESET_WARNA}")
-                return None, "SKIPPED", None
-            print(f"    -> {WARNA_ORANYE}[Warning] F dan R < 85%. Pakai F (Q: {f_score*100:.1f}%, Len: {len(f_proc)} bp).{RESET_WARNA}")
-            return Seq(f_proc), f"F (Tertinggi: {f_score*100:.1f}%)", None
+            seq_recovery = f_proc
+            tipe_bacaan = "F"
+            seq_final = Seq(seq_recovery)
         else:
-            if len(r_proc) < min_length:
-                print(f"    -> {WARNA_MERAH}[SKIPPED] F dan R < 85%, sisa R terlalu pendek ({len(r_proc)} bp).{RESET_WARNA}")
-                return None, "SKIPPED", None
-            print(f"    -> {WARNA_ORANYE}[Warning] F dan R < 85%. Pakai R-rc (Q: {r_score*100:.1f}%, Len: {len(r_proc)} bp).{RESET_WARNA}")
-            return Seq(r_proc).reverse_complement(), f"R-rc (Tertinggi: {r_score*100:.1f}%)", None
+            seq_recovery = r_proc
+            tipe_bacaan = "R-rc"
+            seq_final = Seq(seq_recovery).reverse_complement()
+            
+        if len(seq_recovery) < min_length:
+            print(f"    -> {WARNA_MERAH}[SKIPPED] Kualitas sangat rendah. Sisa {tipe_bacaan} terlalu pendek ({len(seq_recovery)} bp).{RESET_WARNA}")
+            return None, None, "SKIPPED", None
+            
+        status_metode = f"Best Single-Read ({tipe_bacaan})"
+        print(f"    -> {WARNA_ORANYE}[Warning] Kualitas di bawah standar. Menggunakan {status_metode} (Len: {len(seq_recovery)} bp).{RESET_WARNA}")
+        return seq_final, seq_final, status_metode, None
+
+def ekstrak_id_cerdas(clean_name):
+    core = re.sub(r'^\d+_', '', clean_name)
+    parts = core.split('_')
+    if len(parts) > 1 and len(parts[0]) <= 2: 
+        return f"{parts[0]}_{parts[1]}"
+    return parts[0]
+
+def pasangkan_sampel_otomatis_ai(berkas_ab1):
+    f_files = []
+    r_files = []
+    
+    for path in berkas_ab1:
+        nm_file = os.path.basename(path)
+        nm_for_detect = re.sub(r'_(resend|repeat)', '', nm_file, flags=re.IGNORECASE).upper()
+        
+        if any(k in nm_for_detect for k in ['_R.', '_R_', 'BR1', 'GADPHR', 'CYTBR', '16SD_R', 'R_G', 'R1.', 'R1_']) or nm_for_detect.replace('.AB1','').endswith('R'):
+            arah = 'R'
+        else:
+            arah = 'F'
+            
+        clean_name = re.sub(r'\.ab1$', '', nm_file, flags=re.IGNORECASE)
+        clean_name = re.sub(r'^1st_BASE_\d+_', '', clean_name, flags=re.IGNORECASE)
+        
+        if arah == 'F':
+            f_files.append((clean_name, path))
+        else:
+            r_files.append((clean_name, path))
+            
+    pasangan_sampel = {}
+    
+    for f_clean, f_path in f_files:
+        best_match_r = None
+        best_score = 0
+        
+        for r_clean, r_path in r_files:
+            score = SequenceMatcher(None, f_clean.lower(), r_clean.lower()).ratio()
+            if score > best_score:
+                best_score = score
+                best_match_r = r_path
+                
+        if best_match_r and best_score > 0.45: 
+            id_sampel = ekstrak_id_cerdas(f_clean)
+            pasangan_sampel[id_sampel] = {'F': f_path, 'R': best_match_r}
+            r_files = [(c, p) for c, p in r_files if p != best_match_r]
+        else:
+            id_sampel = ekstrak_id_cerdas(f_clean)
+            pasangan_sampel[id_sampel] = {'F': f_path, 'R': None}
+            
+    for r_clean, r_path in r_files:
+        id_sampel = ekstrak_id_cerdas(r_clean)
+        pasangan_sampel[id_sampel] = {'F': None, 'R': r_path}
+        
+    return pasangan_sampel
+
+def urutkan_natural(teks):
+    return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', teks)]
 
 def koreksi_orientasi_via_blastn(seq_record):
     print(f"    -> [BLAST] Mengirim {seq_record.id} ke NCBI BLASTn... (Jeda aman 20 detik aktif, harap tunggu)")
@@ -244,61 +334,6 @@ def koreksi_orientasi_via_blastn(seq_record):
         print(f"    -> [BLAST] Gagal menghubungi NCBI ({e}).")
         return seq_record
 
-def pasangkan_sampel_otomatis_ai(berkas_ab1):
-    f_files = []
-    r_files = []
-    
-    for path in berkas_ab1:
-        nm_file = os.path.basename(path)
-        
-        nm_for_detect = re.sub(r'_(resend|repeat)', '', nm_file, flags=re.IGNORECASE).upper()
-        
-        if any(k in nm_for_detect for k in ['_R.', '_R_', 'BR1', 'GADPHR', 'CYTBR', 'BFIB5R', 'R_G', 'R1.', 'R1_']) or nm_for_detect.replace('.AB1','').endswith('R'):
-            arah = 'R'
-        else:
-            arah = 'F'
-            
-        clean_name = re.sub(r'\.ab1$', '', nm_file, flags=re.IGNORECASE)
-        clean_name = re.sub(r'_FastSeq.*', '', clean_name, flags=re.IGNORECASE)
-        clean_name = re.sub(r'_POP.*', '', clean_name, flags=re.IGNORECASE)
-        clean_name = re.sub(r'_[A-H]\d{2}_\d{2}', '', clean_name, flags=re.IGNORECASE)
-        clean_name = re.sub(r'^1st_BASE_\d+_', '', clean_name, flags=re.IGNORECASE)
-        clean_name = re.sub(r'_(resend|repeat|rev)', '', clean_name, flags=re.IGNORECASE)
-        
-        if arah == 'F':
-            f_files.append((clean_name, path))
-        else:
-            r_files.append((clean_name, path))
-            
-    pasangan_sampel = {}
-    
-    for f_clean, f_path in f_files:
-        best_match_r = None
-        best_score = 0
-        
-        for r_clean, r_path in r_files:
-            score = SequenceMatcher(None, f_clean.lower(), r_clean.lower()).ratio()
-            if score > best_score:
-                best_score = score
-                best_match_r = r_path
-                
-        if best_match_r and best_score > 0.55: 
-            id_sampel = f_clean.split('_')[0]
-            pasangan_sampel[id_sampel] = {'F': f_path, 'R': best_match_r}
-            r_files = [(c, p) for c, p in r_files if p != best_match_r]
-        else:
-            id_sampel = f_clean.split('_')[0]
-            pasangan_sampel[id_sampel] = {'F': f_path, 'R': None}
-            
-    for r_clean, r_path in r_files:
-        id_sampel = r_clean.split('_')[0]
-        pasangan_sampel[id_sampel] = {'F': None, 'R': r_path}
-        
-    return pasangan_sampel
-
-def urutkan_natural(teks):
-    return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', teks)]
-
 def main():
     print("=" * 65)
     print(" CHROMAFORGE: SANGER CONTIG ASSEMBLER (Strict CAP Mode)")
@@ -308,7 +343,7 @@ def main():
     folder = input("Ketik nama folder penyimpanan file .ab1 (Enter jika di folder ini): ").strip()
     pola = os.path.join(folder, "*.ab1") if folder else "*.ab1"
     
-    pakai_blast = input("Aktifkan validasi orientasi otomatis BLASTn NCBI? (Aman tapi lambat) [y/n]: ").strip().lower() == 'y'
+    pakai_blast = input("Aktifkan validasi orientasi otomatis BLASTn NCBI? [y/n]: ").strip().lower() == 'y'
     
     berkas_ab1 = glob.glob(pola)
     if not berkas_ab1:
@@ -316,12 +351,16 @@ def main():
         return
         
     pasangan_sampel = pasangkan_sampel_otomatis_ai(berkas_ab1)
-    rekaman_fasta = []
+    rekaman_fasta_iupac = []
+    rekaman_fasta_pseudo = []
     semua_laporan_mismatch = []
     
-    print(f"\nTotal kelompok sampel terdeteksi: {len(pasangan_sampel)}\n")
+    sampel_iupac_terdeteksi = []
+    total_sampel = len(pasangan_sampel)
+    
+    print(f"\nTotal kelompok sampel terdeteksi: {total_sampel}\n")
 
-    for id_s in sorted(pasangan_sampel.keys(), key=urutkan_natural):
+    for urutan, id_s in enumerate(sorted(pasangan_sampel.keys(), key=urutkan_natural), 1):
         path_dict = pasangan_sampel[id_s]
         file_F = path_dict.get('F')
         file_R = path_dict.get('R')
@@ -329,38 +368,59 @@ def main():
         base_F = os.path.basename(file_F) if file_F else "Tidak ada Forward"
         base_R = os.path.basename(file_R) if file_R else "Tidak ada Reverse"
 
-        if file_F and file_R:
-            print(f" Memproses sampel: {id_s} ({base_F} - {base_R})")
-            f_rec = SeqIO.read(file_F, "abi")
-            r_rec = SeqIO.read(file_R, "abi")
+        if file_F or file_R:
+            print(f"[{urutan}/{total_sampel}] Memproses sampel: {id_s} ({base_F} - {base_R})")
             
-            sekuen_final, status, laporan_mismatch = proses_sampel_dengan_aturan_lengkap(f_rec, r_rec, id_s, min_length=200)
+            f_rec = SeqIO.read(file_F, "abi") if file_F else None
+            r_rec = SeqIO.read(file_R, "abi") if file_R else None
+            
+            seq_iupac, seq_pseudo, status, laporan_mismatch = proses_sampel_dengan_aturan_lengkap(f_rec, r_rec, id_s, min_length=200)
             
             if laporan_mismatch:
                 semua_laporan_mismatch.append(laporan_mismatch)
                 
-            if sekuen_final is None: continue
+            if seq_iupac is None or seq_pseudo is None: continue
             
-            final_record = SeqRecord(sekuen_final, id=id_s, description=f"Method: {status}")
+            if str(seq_iupac) != str(seq_pseudo):
+                sampel_iupac_terdeteksi.append(f"[{urutan}/{total_sampel}] {id_s}")
+            
+            record_iupac = SeqRecord(seq_iupac, id=id_s, description=f"Method: {status} | Mode: IUPAC")
+            record_pseudo = SeqRecord(seq_pseudo, id=id_s, description=f"Method: {status} | Mode: PseudoPhased")
             
             if pakai_blast:
-                final_record = koreksi_orientasi_via_blastn(final_record)
+                record_iupac = koreksi_orientasi_via_blastn(record_iupac)
+                record_pseudo = SeqRecord(record_iupac.seq, id=id_s, description=record_pseudo.description + " | BLAST_Orientation: Validated")
                 time.sleep(20)
                 
-            rekaman_fasta.append(final_record)
-        else:
-            print(f" {WARNA_MERAH}[!] Gagal dipasangkan / Tidak Lengkap: {id_s} ({base_F} - {base_R}){RESET_WARNA}")
+            rekaman_fasta_iupac.append(record_iupac)
+            rekaman_fasta_pseudo.append(record_pseudo)
 
-    if rekaman_fasta:
-        out_name = "MultiFASTA_ChromaForge_Strict.fasta"
-        SeqIO.write(rekaman_fasta, out_name, "fasta")
-        print(f"\n[SELESAI] File {len(rekaman_fasta)} sekuen disimpan sebagai: {out_name}")
-        
+    if rekaman_fasta_iupac:
+        if sampel_iupac_terdeteksi:
+            nama_file_dnasp = "MultiFASTA_ChromaForge_For_DnaSP.fasta"
+            nama_file_mega = "MultiFASTA_ChromaForge_For_MEGA.fasta"
+            
+            SeqIO.write(rekaman_fasta_iupac, nama_file_dnasp, "fasta")
+            SeqIO.write(rekaman_fasta_pseudo, nama_file_mega, "fasta")
+            
+            print(f"\n[SELESAI] Heterozigot ganda (IUPAC) terdeteksi pada {len(sampel_iupac_terdeteksi)} sampel:")
+            for s_iupac in sampel_iupac_terdeteksi:
+                print(f"  -> {s_iupac}")
+            print(f"\nFile diekspor menjadi:")
+            print(f"  1. {nama_file_dnasp}")
+            print(f"  2. {nama_file_mega}")
+        else:
+            nama_file_tunggal = "MultiFASTA_ChromaForge_Final.fasta"
+            
+            SeqIO.write(rekaman_fasta_iupac, nama_file_tunggal, "fasta")
+            
+            print(f"\n[SELESAI] Tidak ada kode IUPAC. File diekspor tunggal:")
+            print(f"  1. {nama_file_tunggal} (Aman digunakan untuk MEGA maupun DnaSP)")
+            
     if semua_laporan_mismatch:
         out_report = "Mismatch_Alignment_Report.txt"
         with open(out_report, "w", encoding="utf-8") as f:
             f.write("".join(semua_laporan_mismatch))
-        print(f"{WARNA_KUNING}[INFO] Catatan mismatch disimpan di file: {out_report}{RESET_WARNA}")
 
 if __name__ == '__main__':
     main()
