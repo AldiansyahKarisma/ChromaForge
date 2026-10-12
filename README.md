@@ -15,7 +15,7 @@ Phred Q≥20 Auto-Trim: Pemangkasan ujung sekuen secara otomatis berdasarkan pro
 
 AI Smart Match (Fuzzy Logic): Memasangkan file F dan R dari direktori secara cerdas berdasarkan kemiripan nama sampel (>45% string matching).
 
-Integrasi ChromaCore AI: Evaluasi pasca-perakitan otomatis menggunakan model Large Language Model (LLM) untuk mendiagnosis kualitas sekuen.
+Integrasi ChromaCore AI: Evaluasi pasca-perakitan otomatis menggunakan Large Language Model (LLM) untuk mendiagnosis kualitas sekuen.
 
 Penanganan Heterozigot (IUPAC): Mempertahankan kode ambiguitas asli untuk DnaSP dan melakukan pseudo-phasing untuk kompatibilitas MEGA.
 
@@ -31,7 +31,7 @@ Kumpulkan seluruh file kromatogram (.ab1) ke dalam folder tersebut.
 
 Unduh dan letakkan file skrip ChromaForge_Assembler.py ke folder yang sama.
 
-Catatan AI Smart Match: Pastikan file memiliki penanda F dan R (misal akhiran _F dan _R). Anda tidak perlu mengubah nama secara spesifik, sistem otomatis memasangkannya.
+💡 Catatan AI Smart Match: Pastikan file memiliki penanda F dan R (misal akhiran _F dan _R). Anda tidak perlu mengubah nama secara spesifik, sistem otomatis memasangkannya.
 
 Langkah 2: Konfigurasi ChromaCore AI (Opsional)
 
@@ -87,12 +87,11 @@ AI_Analysis_Result.txt: Evaluasi naratif kualitas sampel dan instruksi in silico
 
 Umpan Balik (Feedback)
 
-Kami sangat menghargai evaluasi kritis terhadap performa algoritma ini. Jika Anda menemukan anomali atau bug, mohon laporkan melalui tautan berikut: Formulir Umpan Balik ChromaForge (https://bit.ly/FormEvaluasiandBugTrackingChromaForge)
+Kami sangat menghargai evaluasi kritis terhadap performa algoritma ini. Jika Anda menemukan anomali atau bug, mohon laporkan melalui tautan berikut: Formulir Umpan Balik ChromaForge
+(https://bit.ly/FormEvaluasiandBugTrackingChromaForge)
 
-Identitas Pengembang
+Identitas Pengembang & Lisensi
 
-Muhammad Aldiansyah Karisma | Universitas Bengkulu (2026)
+Pengembang: Muhammad Aldiansyah Karisma | Universitas Bengkulu (2026)
 
-Lisensi
-
-Proyek ini didistribusikan di bawah MIT License. Lihat file LICENSE untuk detail perlindungan hukum dan hak cipta.
+Lisensi: Proyek ini didistribusikan di bawah MIT License. Lihat file LICENSE untuk detail perlindungan hukum dan hak cipta.
