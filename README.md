@@ -1,43 +1,98 @@
-# ChromaForge
+ChromaForge: Automated Sanger Sequencing Assembler
 
-> [!WARNING]
-> **BETA VERSION - TEST PURPOSES ONLY**
-> Skrip ChromaForge saat ini murni berada dalam tahap pengujian beta (Beta Testing). Harap TIDAK menggunakan hasil perakitan dari skrip ini untuk pengolahan data primer pada skripsi, tesis, disertasi, atau publikasi jurnal hingga versi stabil resmi dirilis. Gunakan hanya untuk keperluan uji coba algoritma.
+⚠️ BETA VERSION - TEST PURPOSES ONLY
+Saat ini, ChromaForge masih berada dalam tahap pengujian beta (Beta Testing). Harap TIDAK menggunakan hasil perakitan skrip ini untuk pengolahan data primer pada skripsi, tesis, disertasi, atau publikasi jurnal hingga versi stabil (stable release) dirilis. Gunakan hanya untuk keperluan uji coba algoritma.
 
-## Deskripsi
-ChromaForge adalah instrumen bioinformatika berbasis Python yang mengekstraksi data biner kromatogram (.ab1) secara langsung. Sistem ini memangkas data kotor berdasarkan ambang batas Phred Q≥20 dan mengaplikasikan algoritma Fuzzy Logic untuk memasangkan sekuen Forward dan Reverse tanpa mewajibkan intervensi penamaan ulang secara manual.
+Deskripsi
 
-## Fitur Utama
-* **Native .ab1 Parsing**: Membaca langsung kromatogram tanpa perlu konversi format.
-* **Phred Q≥20 Auto-Trim**: Pemangkasan ujung sekuen secara otomatis berdasarkan probabilitas kesalahan matematis.
-* **AI Smart Match (Fuzzy Logic)**: Memasangkan file F dan R dari direktori sesuai pasangannya.
-* **Fault Tolerance**: Mengisolasi file bermasalah atau rusak tanpa memicu sistem crash atau stop running.
+ChromaForge adalah instrumen bioinformatika berbasis Python yang mengekstraksi data biner kromatogram (.ab1) secara langsung. Sistem ini memangkas data kotor berdasarkan ambang batas Phred Q≥20 dan mengaplikasikan algoritma Fuzzy Logic untuk memasangkan sekuen Forward dan Reverse secara cerdas tanpa mewajibkan intervensi penamaan ulang manual.
 
-## Langkah 1: Persiapan Ruang Kerja
-1. Buat folder baru (misalnya "Proyek_DNA") dan pindahkan seluruh file kromatogram (.ab1) beserta skrip `ChromaForge_Assembler.py` ke dalamnya.
-2. Pastikan file Forward dan Reverse Anda memiliki akhiran `_F` dan `_R` agar skrip otomatis memasangkannya.
+Fitur Utama
 
-## Langkah 2: Instalasi Kebutuhan Sistem
-1. Unduh Python dari situs resminya. **SANGAT PENTING:** Saat menginstal, pastikan Anda mencentang kotak "Add Python to PATH" di bagian bawah layar, Jika tidak ada lanjutkan saja.
-2. Buka Command Prompt (CMD), ketik `pip install biopython`, lalu tekan Enter untuk menginstal pustaka pengolah data.
+Native .ab1 Parsing: Membaca langsung file biner kromatogram tanpa perlu konversi format.
 
-## Langkah 3: Eksekusi Skrip
-1. Buka folder "Proyek_DNA" Anda, klik kiri satu kali pada *Address Bar*, hapus teksnya, ketik `cmd`, lalu tekan Enter.
-2. Pada jendela CMD yang terbuka, ketik `python ChromaForge_Assembler.py` dan tekan Enter.
-3. Anda akan diminta memilih mode:
-   * **Ketik n (Mode Offline)**: Sangat direkomendasikan. Memproses ratusan sampel dalam hitungan detik tanpa internet.
-   * **Ketik y (Mode Online)**: Lambat karena mengirim data ke NCBI untuk mengecek arah untai. Cocok untuk 1-3 sampel saja.
+Phred Q≥20 Auto-Trim: Pemangkasan ujung sekuen secara otomatis berdasarkan probabilitas kesalahan matematis (Phred Q-score).
 
-## Hasil Akhir
-Setelah proses selesai, skrip akan menghasilkan file `MultiFASTA_ChromaForge_BLAST.fasta` berisi seluruh DNA bersih yang telah dipotong dan digabungkan, siap dimasukkan ke aplikasi MEGA.
+AI Smart Match (Fuzzy Logic): Memasangkan file F dan R dari direktori secara cerdas berdasarkan kemiripan nama sampel (>45% string matching).
 
-## Umpan Balik Pengujian (Beta Feedback)
-Kami sangat menghargai evaluasi Anda terhadap performa algoritma ini. Jika Anda menemukan anomali, mohon laporkan melalui tautan berikut:
-**[Formulir Evaluasi Beta ChromaForge](https://bit.ly/FormEvaluasiandBugTrackingChromaForge)**
+Integrasi ChromaCore AI: Evaluasi pasca-perakitan otomatis menggunakan model Large Language Model (LLM) untuk mendiagnosis kualitas sekuen.
 
-## Identitas Pengembang
-**Muhammad Aldiansyah Karisma**
-Universitas Bengkulu (2026)
+Penanganan Heterozigot (IUPAC): Mempertahankan kode ambiguitas asli untuk DnaSP dan melakukan pseudo-phasing untuk kompatibilitas MEGA.
 
-## Lisensi
-Proyek ini didistribusikan di bawah **MIT License**. Lihat file LICENSE untuk detail perlindungan hukum dan hak cipta.
+Fault Tolerance: Mengisolasi file bermasalah atau rusak tanpa memicu sistem berhenti beroperasi (crash).
+
+Panduan Penggunaan
+
+Langkah 1: Persiapan Ruang Kerja
+
+Buat folder baru di komputer Anda (misal: Proyek_DNA).
+
+Kumpulkan seluruh file kromatogram (.ab1) ke dalam folder tersebut.
+
+Unduh dan letakkan file skrip ChromaForge_Assembler.py ke folder yang sama.
+
+Catatan AI Smart Match: Pastikan file memiliki penanda F dan R (misal akhiran _F dan _R). Anda tidak perlu mengubah nama secara spesifik, sistem otomatis memasangkannya.
+
+Langkah 2: Konfigurasi ChromaCore AI (Opsional)
+
+Untuk mengaktifkan asisten evaluasi otomatis (ChromaCore AI):
+
+Buat API Key melalui Google AI Studio.
+
+Buka program Notepad.
+
+Ketikkan kode berikut di baris pertama: GEMINI_API_KEY=kunci_rahasia_anda_di_sini
+
+Klik File > Save As.
+
+Pada bagian Save as type, ubah menjadi All Files (.).
+
+Pada File name, ketik persis .env.
+
+Simpan di dalam folder kerja Anda.
+
+Langkah 3: Instalasi Kebutuhan Sistem
+
+Unduh dan instal Python 3.x dari situs resmi Python. WAJIB centang Add Python to PATH saat instalasi.
+
+Buka Command Prompt (CMD) dan instal pustaka yang dibutuhkan dengan menjalankan perintah berikut:
+
+pip install biopython google-genai python-dotenv
+
+
+Langkah 4: Menjalankan Skrip
+
+Buka folder kerja Anda, klik pada Address Bar (kolom lokasi folder di bagian atas), ketik cmd, lalu tekan Enter.
+
+Di jendela CMD yang terbuka, jalankan perintah:
+
+python ChromaForge_Assembler.py
+
+
+Tekan Enter saat diminta nama folder.
+
+Pilih mode orientasi BLASTn: ketik n (Offline - Sangat Cepat) atau y (Online - Melakukan kueri ke server NCBI).
+
+Keluaran (Output)
+
+Berdasarkan deteksi kode IUPAC dan status API, skrip menghasilkan hingga 4 file keluaran di folder kerja Anda:
+
+MultiFASTA_ChromaForge_For_MEGA.fasta: Sekuen konsensus dengan pseudo-phasing basa ganda. Aman untuk MEGA.
+
+MultiFASTA_ChromaForge_For_DnaSP.fasta: Sekuen yang mempertahankan kode ambiguitas IUPAC asli (jika terdapat heterozigot).
+
+Mismatch_Alignment_Report.txt: Catatan teknis (log) posisi mismatch dan resolusi basa.
+
+AI_Analysis_Result.txt: Evaluasi naratif kualitas sampel dan instruksi in silico dari ChromaCore AI.
+
+Umpan Balik (Feedback)
+
+Kami sangat menghargai evaluasi kritis terhadap performa algoritma ini. Jika Anda menemukan anomali atau bug, mohon laporkan melalui tautan berikut: Formulir Umpan Balik ChromaForge (https://bit.ly/FormEvaluasiandBugTrackingChromaForge)
+
+Identitas Pengembang
+
+Muhammad Aldiansyah Karisma | Universitas Bengkulu (2026)
+
+Lisensi
+
+Proyek ini didistribusikan di bawah MIT License. Lihat file LICENSE untuk detail perlindungan hukum dan hak cipta.
