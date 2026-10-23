@@ -6,14 +6,16 @@ Saat ini, ChromaForge masih berada dalam tahap pengujian beta (Beta Testing). Ha
 ---
 
 ## Deskripsi
-ChromaForge adalah instrumen bioinformatika berbasis Python yang mengekstraksi data biner kromatogram (`.ab1`) secara langsung. Sistem ini memangkas data kotor berdasarkan ambang batas Phred Q≥20 dan mengaplikasikan algoritma *Fuzzy Logic* untuk memasangkan sekuen *Forward* dan *Reverse* secara cerdas tanpa mewajibkan intervensi penamaan ulang manual.
+ChromaForge adalah instrumen bioinformatika berbasis Python yang mengekstraksi data biner kromatogram (`.ab1`) secara langsung. Sistem ini memangkas data kotor berdasarkan ambang batas Phred Q≥20 dan mengaplikasikan algoritma *Fuzzy Logic* untuk memasangkan sekuen *Forward* dan *Reverse* secara cerdas serta universal tanpa mewajibkan intervensi penamaan ulang manual.
 
 ---
 
 ## Fitur Utama
 *   **Native .ab1 Parsing:** Membaca langsung file biner kromatogram tanpa perlu konversi format.
 *   **Phred Q≥20 Auto-Trim:** Pemangkasan ujung sekuen secara otomatis berdasarkan probabilitas kesalahan matematis (Phred Q-score).
-*   **AI Smart Match (Fuzzy Logic):** Memasangkan file F dan R dari direktori secara cerdas berdasarkan kemiripan nama sampel (>45% *string matching*).
+*   **AI Smart Match (Fuzzy Logic):** Memasangkan file F dan R dari direktori secara cerdas berdasarkan kemiripan nama sampel (dengan sistem ID yang ketat dan universal untuk mencegah file tertimpa).
+*   **Interactive Dry-Run Module:** Menyediakan antarmuka pratinjau draf pasangan sampel lengkap dengan perintah fleksibel (`tukar`, `geser`, `pisah`) sebelum perakitan dimulai.
+*   **Gap-Aware Consensus Matrix:** Mengakomodasi celah (*indel*) secara cerdas sehingga basa dengan kualitas *peak* tinggi tetap tertangkap alih-alih dibuang menjadi spasi kosong atau 'N'.
 *   **Integrasi ChromaCore AI:** Evaluasi pasca-perakitan otomatis menggunakan *Large Language Model* (LLM) untuk mendiagnosis kualitas sekuen.
 *   **Penanganan Heterozigot (IUPAC):** Mempertahankan kode ambiguitas asli untuk DnaSP dan melakukan *pseudo-phasing* untuk kompatibilitas MEGA.
 *   **Fault Tolerance:** Mengisolasi file bermasalah atau rusak tanpa memicu sistem berhenti beroperasi (*crash*).
@@ -27,19 +29,26 @@ ChromaForge adalah instrumen bioinformatika berbasis Python yang mengekstraksi d
 2. Kumpulkan seluruh file kromatogram (`.ab1`) ke dalam folder tersebut.
 3. Unduh dan letakkan file skrip `ChromaForge_Assembler.py` ke folder yang sama.
 
-> **💡 Catatan AI Smart Match:** Pastikan file memiliki penanda F dan R (misal akhiran `_F` dan `_R`). Anda tidak perlu mengubah nama secara spesifik, sistem otomatis memasangkannya.
+> **💡 Catatan AI Smart Match:** Pastikan file memiliki penanda F dan R. Sistem mencocokkan ID sampel secara ketat dan universal untuk menghindari kesalahan silang antar sampel.
 
-### Langkah 2: Konfigurasi ChromaCore AI (Opsional)
+### Langkah 2: Modul Dry-Run Interaktif
+Sebelum perakitan dimulai, draf pasangan sampel akan ditampilkan di terminal. Anda dapat melakukan verifikasi visual dan menggunakan perintah manual berikut:
+*   `tukar [F/R] [no1] [no2]` : Menukar posisi file antar dua sampel.
+*   `geser [F/R] [asal] [tuj]` : Memindahkan file ke slot tujuan tertentu.
+*   `pisah [F/R] [no]` : Mencabut file dari suatu sampel agar berdiri sebagai entitas mandiri.
+*   `y` : Melanjutkan proses perakitan.
+
+### Langkah 3: Konfigurasi ChromaCore AI (Opsional)
 Untuk mengaktifkan asisten evaluasi otomatis (ChromaCore AI):
 1. Buat API Key melalui [Google AI Studio](https://aistudio.google.com/).
 2. Buka program **Notepad**.
 3. Ketikkan kode berikut di baris pertama: `GEMINI_API_KEY=kunci_rahasia_anda_di_sini`
 4. Klik **File > Save As**.
 5. Pada bagian *Save as type*, ubah menjadi **All Files (*.*)**.
-6. Pada *File name*, ketik persis **.env**
+6. Pada *File name*, ketik persis **.env** (pastikan ada tanda titik di awal).
 7. Simpan di dalam folder kerja Anda.
 
-### Langkah 3: Instalasi Kebutuhan Sistem
+### Langkah 4: Instalasi Kebutuhan Sistem
 1. Unduh dan instal **Python 3.x** dari [situs resmi Python](https://www.python.org/downloads/). **WAJIB** centang *Add Python to PATH* saat instalasi.
 2. Buka Command Prompt (CMD) dan instal pustaka yang dibutuhkan dengan menjalankan perintah berikut:
 
