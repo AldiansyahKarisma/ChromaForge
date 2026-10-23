@@ -347,10 +347,10 @@ def koreksi_orientasi_via_blastn(seq_record):
             if hsp.frame[1] < 0:
                 print(f"    -> [BLAST] Orientasi Minus terdeteksi (HSP Frame: {hsp.frame}). Memutar orientasi...")
                 rev_seq = seq_record.seq.reverse_complement()
-                return SeqRecord(rev_seq, id=seq_record.id, description=seq_record.description + " | BLAST_Orientation: Reversed")
+                return SeqRecord(rev_seq, id=seq_record.id, description="")
             else:
                 print(f"    -> [BLAST] Orientasi Plus/Plus sudah akurat.")
-                return SeqRecord(seq_record.seq, id=seq_record.id, description=seq_record.description + " | BLAST_Orientation: OK")
+                return SeqRecord(seq_record.seq, id=seq_record.id, description="")
         else:
             print(f"    -> [BLAST] Tidak ada hit referensi ditemukan.")
             return seq_record
@@ -481,12 +481,12 @@ def main():
             if str(seq_iupac) != str(seq_pseudo):
                 sampel_iupac_terdeteksi.append(f"[{urutan}/{total_sampel}] {id_s}")
             
-            record_iupac = SeqRecord(seq_iupac, id=id_s, description=f"Method: {status} | Mode: IUPAC")
-            record_pseudo = SeqRecord(seq_pseudo, id=id_s, description=f"Method: {status} | Mode: PseudoPhased")
+            record_iupac = SeqRecord(seq_iupac, id=id_s, description="")
+            record_pseudo = SeqRecord(seq_pseudo, id=id_s, description="")
             
             if pakai_blast:
                 record_iupac = koreksi_orientasi_via_blastn(record_iupac)
-                record_pseudo = SeqRecord(record_iupac.seq, id=id_s, description=record_pseudo.description + " | BLAST_Orientation: Validated")
+                record_pseudo = SeqRecord(record_iupac.seq, id=id_s, description="")
                 time.sleep(20)
                 
             rekaman_fasta_iupac.append(record_iupac)
