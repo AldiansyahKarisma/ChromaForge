@@ -87,7 +87,7 @@ Kami sangat menghargai evaluasi kritis terhadap performa algoritma ini. Jika And
 ---
 
 ## Identitas Pengembang
-**Muhammad Aldiansyah Karisma** | Universitas Bengkulu (2026)
+**Muhammad Aldiansyah Karisma** | Biology, Universitas Bengkulu (2026)
 
 ## Lisensi
 Proyek ini didistribusikan di bawah **MIT License**. Lihat file `LICENSE` untuk detail perlindungan hukum dan hak cipta.
