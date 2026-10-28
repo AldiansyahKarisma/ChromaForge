@@ -4,7 +4,7 @@
 # Affiliation: Biologi, Universitas Bengkulu
 # Year: 2026
 # License: MIT License
-# Description: Intelligent contig assembler
+# Description: Intelligent contig assembler with universal regex & UI enhancements
 # ==============================================================================
 
 import os
@@ -280,25 +280,32 @@ def proses_sampel_dengan_aturan_lengkap(f_rec, r_rec, id_sampel, min_length=200)
 
 def ekstrak_id_cerdas(clean_name):
     core = re.sub(r'^1st_BASE_\d+_', '', clean_name, flags=re.IGNORECASE)
-    core = re.sub(r'_(resend|repeat|F_A|R_A)$', '', core, flags=re.IGNORECASE)
-    core = re.sub(r'_(27F|1492R|F|R)$', '', core, flags=re.IGNORECASE)
     core = re.sub(r'_[A-Ha-h]\d{2}_\d+.*$', '', core)
-    core = re.sub(r'_(fastseq|pop|macrogen|apical|z)[a-zA-Z0-9_]*$', '', core, flags=re.IGNORECASE)
-    core = re.sub(r'(?<!^)(F|R)$', '', core, flags=re.IGNORECASE)
+    core = re.sub(r'_(resend|repeat|fastseq|pop|macrogen|apical|z)[a-zA-Z0-9_]*$', '', core, flags=re.IGNORECASE)
+    core = re.sub(r'_?(27F|1492R)$', '', core, flags=re.IGNORECASE)
+    core = re.sub(r'_?(F|R)[\s_]*(?:[0-9]+|x|a|b)?$', '', core, flags=re.IGNORECASE)
     return core.strip('_')
 
-# LOGIKA PENCARIAN & PEMASANGAN SAMPEL YANG UNIVERSAL & KETAT (MENCEGAH SAMPEL TERTIMPA/LOMPAT)
 def pasangkan_sampel_otomatis_ai(berkas_ab1):
     f_files = {}
     r_files = {}
     
     for path in berkas_ab1:
         nm_file = os.path.basename(path)
-        nm_for_detect = re.sub(r'_(resend|repeat)', '', nm_file, flags=re.IGNORECASE).upper()
-        arah = 'R' if any(k in nm_for_detect for k in ['_R.', '_R_', 'BR1', 'GADPHR', 'CYTBR', '16SD_R', 'R_G', 'R1.', '1492R']) or nm_for_detect.replace('.AB1','').endswith('R') else 'F'
-        clean_name = re.sub(r'\.ab1$', '', nm_file, flags=re.IGNORECASE)
         
+        core_for_detect = re.sub(r'^1st_BASE_\d+_', '', nm_file, flags=re.IGNORECASE)
+        core_for_detect = re.sub(r'_[A-Ha-h]\d{2}_\d+.*$', '', core_for_detect)
+        core_for_detect = re.sub(r'_(resend|repeat|fastseq|pop|macrogen|apical|z)[a-zA-Z0-9_]*\.ab1$', '', core_for_detect, flags=re.IGNORECASE)
+        core_for_detect = re.sub(r'\.ab1$', '', core_for_detect, flags=re.IGNORECASE)
+        
+        if re.search(r'_?(1492R|R)[\s_]*(?:[0-9]+|x|a|b)?$', core_for_detect, flags=re.IGNORECASE):
+            arah = 'R'
+        else:
+            arah = 'F'
+            
+        clean_name = re.sub(r'\.ab1$', '', nm_file, flags=re.IGNORECASE)
         id_sampel = ekstrak_id_cerdas(clean_name)
+        
         if arah == 'F':
             f_files[id_sampel] = path
         else:
@@ -325,11 +332,17 @@ def dry_run_koreksi(pasangan_sampel):
         
         print(f"\n{WARNA_BIRU}[DRY-RUN] Evaluasi Draf Pasangan Sampel:{RESET_WARNA}")
         for i, id_s in enumerate(list_id_terurut, 1):
-            f_name = os.path.basename(pasangan_sampel[id_s]['F']) if pasangan_sampel[id_s]['F'] else "None"
-            r_name = os.path.basename(pasangan_sampel[id_s]['R']) if pasangan_sampel[id_s]['R'] else "None"
-            print(f"  {i}. {id_s:<15} (F: {f_name:<25} | R: {r_name:<25})")
+            f_val = os.path.basename(pasangan_sampel[id_s]['F']) if pasangan_sampel[id_s]['F'] else "None"
+            r_val = os.path.basename(pasangan_sampel[id_s]['R']) if pasangan_sampel[id_s]['R'] else "None"
             
-        print(f"\n{WARNA_KUNING}Petunjuk Koreksi Manual:{RESET_WARNA}")
+            # Format tampilan 25 karakter dipertahankan agar selaras, lalu dibungkus warna merah jika bernilai None
+            f_display = f"{f_val:<25}" if f_val != "None" else f"{WARNA_MERAH}{f_val:<25}{RESET_WARNA}"
+            r_display = f"{r_val:<25}" if r_val != "None" else f"{WARNA_MERAH}{r_val:<25}{RESET_WARNA}"
+            
+            # \n memberikan spasi antar baris
+            print(f"  {i}. {id_s:<15} (F: {f_display} | R: {r_display})\n")
+            
+        print(f"{WARNA_KUNING}Petunjuk Koreksi Manual:{RESET_WARNA}")
         print(" - 'tukar [F/R] [no1] [no2]'  : Menukar posisi antar dua sampel")
         print(" - 'geser [F/R] [asal] [tuj]' : Memindah file ke slot tujuan")
         print(" - 'pisah [F/R] [no]'         : Mencabut file menjadi sampel mandiri")
@@ -397,26 +410,32 @@ def dry_run_koreksi(pasangan_sampel):
             
     return pasangan_sampel
 
-def koreksi_orientasi_via_blastn(seq_record):
-    print(f"    -> [BLAST] Mengirim {seq_record.id} ke NCBI BLASTn... (Jeda aman 20 detik aktif)")
-    try:
-        result_handle = NCBIWWW.qblast("blastn", "nt", seq_record.seq, hitlist_size=1)
-        blast_record = NCBIXML.read(result_handle)
-        if blast_record.alignments:
-            hsp = blast_record.alignments[0].hsps[0]
-            if hsp.frame[1] < 0:
-                print(f"    -> [BLAST] Orientasi Minus terdeteksi. Memutar orientasi...")
-                return SeqRecord(seq_record.seq.reverse_complement(), id=seq_record.id, name="", description="")
+def koreksi_orientasi_via_blastn(seq_record, max_retries=3):
+    print(f"    -> [BLAST] Mengirim {seq_record.id} ke NCBI BLASTn...")
+    for percobaan in range(max_retries):
+        try:
+            result_handle = NCBIWWW.qblast("blastn", "nt", seq_record.seq, hitlist_size=1)
+            blast_record = NCBIXML.read(result_handle)
+            if blast_record.alignments:
+                hsp = blast_record.alignments[0].hsps[0]
+                if hsp.frame[1] < 0:
+                    print(f"    -> [BLAST] Orientasi Minus terdeteksi. Memutar orientasi...")
+                    return SeqRecord(seq_record.seq.reverse_complement(), id=seq_record.id, name="", description="")
+                else:
+                    print(f"    -> [BLAST] Orientasi Plus/Plus sudah akurat.")
+                    return SeqRecord(seq_record.seq, id=seq_record.id, name="", description="")
+            print(f"    -> [BLAST] Tidak ada hit referensi ditemukan.")
+            return seq_record
+        except Exception as e:
+            if percobaan < max_retries - 1:
+                waktu_tunggu = 30 * (percobaan + 1)
+                print(f"    -> [BLAST] Timeout/Gagal (Percobaan {percobaan+1}). Menunggu {waktu_tunggu} detik...")
+                time.sleep(waktu_tunggu)
             else:
-                print(f"    -> [BLAST] Orientasi Plus/Plus sudah akurat.")
-                return SeqRecord(seq_record.seq, id=seq_record.id, name="", description="")
-        print(f"    -> [BLAST] Tidak ada hit referensi ditemukan.")
-        return seq_record
-    except Exception as e:
-        print(f"    -> [BLAST] Gagal menghubungi NCBI ({e}).")
-        return seq_record
+                print(f"    -> [BLAST] Gagal menghubungi NCBI setelah 3 percobaan. Melewati validasi.")
+                return seq_record
 
-def analyze_report_with_ai(report_path):
+def analyze_report_with_ai(report_path, out_folder=""):
     if not ai_aktif or not client: return
     print(f"\n{WARNA_BIRU}[ChromaCore AI] Menganalisis laporan mismatch...{RESET_WARNA}")
     try:
@@ -435,7 +454,8 @@ def analyze_report_with_ai(report_path):
         print(response.text + teks_reminder)
         print(f"{WARNA_UNGU}========================================================{RESET_WARNA}\n")
         
-        with open("AI_Analysis_Result.txt", "w", encoding="utf-8") as f:
+        ai_result_path = os.path.join(out_folder, "AI_Analysis_Result.txt") if out_folder else "AI_Analysis_Result.txt"
+        with open(ai_result_path, "w", encoding="utf-8") as f:
             f.write(response.text + "\n\nREMINDER:\nHalo! Sekadar mengingatkan untuk pengerjaan lab berikutnya ya. Pastikan semua parameter PCR dipantau dengan baik, dan usahakan proses ekstraksi DNA dilakukan sebersih dan sesteril mungkin. Langkah ini sangat krusial supaya kita terhindar dari kontaminasi silang dan bisa mendapatkan kualitas sekuen yang mulus tanpa banyak derau. Tetap semangat risetnya!")
     except Exception as e:
         print(f"{WARNA_MERAH}[ERROR] Gagal melakukan analisis AI: {e}{RESET_WARNA}")
@@ -456,15 +476,18 @@ def main():
     pola = os.path.join(folder, "*.ab1") if folder else "*.ab1"
     
     pakai_blast = input("Aktifkan validasi orientasi otomatis BLASTn NCBI? [y/n]: ").strip().lower() == 'y'
+    out_folder = input("Ketik nama folder output (opsional, tekan Enter untuk simpan di folder yang sama): ").strip()
     
+    if out_folder and not os.path.exists(out_folder):
+        os.makedirs(out_folder)
+        
     berkas_ab1 = glob.glob(pola)
     if not berkas_ab1:
         print("[!] Tidak ada file .ab1 ditemukan.")
+        input(f"\n{WARNA_BIRU}Proses selesai. Tekan Enter untuk keluar...{RESET_WARNA}")
         return
         
     pasangan_sampel = pasangkan_sampel_otomatis_ai(berkas_ab1)
-    
-    # Eksekusi Dry-Run Interaktif
     pasangan_sampel = dry_run_koreksi(pasangan_sampel)
     
     list_id_terurut = sorted(pasangan_sampel.keys(), key=urutkan_natural)
@@ -485,8 +508,9 @@ def main():
                 indeks_terpilih.add(int(bagian))
         pasangan_sampel = {list_id_terurut[idx-1]: pasangan_sampel[list_id_terurut[idx-1]] for idx in indeks_terpilih if 1 <= idx <= len(list_id_terurut)}
 
-    nama_custom = input("\nKetik nama file keluaran / awalan (tanpa ekstensi .fasta): ").strip()
-    if not nama_custom: nama_custom = "Output_ChromaForge"
+    nama_custom = input("\nKetik awalan file (opsional, tekan Enter jika hanya ingin menggunakan ID sampel): ").strip()
+    prefix = f"{nama_custom}_" if nama_custom else ""
+    prefix_multi = f"{nama_custom}_" if nama_custom else "ChromaForge_"
 
     total_sampel = len(pasangan_sampel)
     print(f"\nMemproses {total_sampel} sampel...\n")
@@ -511,39 +535,48 @@ def main():
         if pakai_blast:
             record_iupac = koreksi_orientasi_via_blastn(record_iupac)
             record_pseudo = SeqRecord(record_iupac.seq, id=id_s, name="", description="")
-            time.sleep(20)
             
         # Ekspor Satuan (Individu per Sampel)
         if str(seq_iupac) != str(seq_pseudo):
-            SeqIO.write([record_iupac], f"{nama_custom}_{id_s}_For_DnaSP.fasta", "fasta")
-            SeqIO.write([record_pseudo], f"{nama_custom}_{id_s}_For_MEGA.fasta", "fasta")
-            print(f"  -> [EKSPOR SATUAN] {WARNA_UNGU}(Heterozigot){RESET_WARNA} {nama_custom}_{id_s}_For_DnaSP.fasta & {nama_custom}_{id_s}_For_MEGA.fasta (bisa digunakan untuk MEGA maupun DnaSP)")
+            file_dnasp = os.path.join(out_folder, f"{prefix}{id_s}_For_DnaSP.fasta") if out_folder else f"{prefix}{id_s}_For_DnaSP.fasta"
+            file_mega = os.path.join(out_folder, f"{prefix}{id_s}_For_MEGA.fasta") if out_folder else f"{prefix}{id_s}_For_MEGA.fasta"
+            
+            SeqIO.write([record_iupac], file_dnasp, "fasta")
+            SeqIO.write([record_pseudo], file_mega, "fasta")
+            print(f"  -> [EKSPOR SATUAN] {WARNA_UNGU}(Heterozigot){RESET_WARNA} {os.path.basename(file_dnasp)} & {os.path.basename(file_mega)}")
             
             koleksi_fasta_iupac.append(record_iupac)
             koleksi_fasta_pseudo.append(record_pseudo)
         else:
-            SeqIO.write([record_iupac], f"{nama_custom}_{id_s}_Final.fasta", "fasta")
-            print(f"  -> [EKSPOR SATUAN] {nama_custom}_{id_s}_Final.fasta (bisa digunakan untuk MEGA maupun DnaSP)")
+            file_final = os.path.join(out_folder, f"{prefix}{id_s}_Final.fasta") if out_folder else f"{prefix}{id_s}_Final.fasta"
+            SeqIO.write([record_iupac], file_final, "fasta")
+            print(f"  -> [EKSPOR SATUAN] {os.path.basename(file_final)}")
             
             koleksi_fasta_tunggal.append(record_iupac)
 
     # Ekspor Gabungan (MultiFASTA Sekaligus)
     print(f"\n{WARNA_BIRU}[EKSPOR GABUNGAN] Membuat file MultiFASTA...{RESET_WARNA}")
     if koleksi_fasta_iupac:
-        SeqIO.write(koleksi_fasta_iupac, f"{nama_custom}_MultiFASTA_For_DnaSP.fasta", "fasta")
-        SeqIO.write(koleksi_fasta_pseudo, f"{nama_custom}_MultiFASTA_For_MEGA.fasta", "fasta")
-        print(f"  -> Gabungan IUPAC: {nama_custom}_MultiFASTA_For_DnaSP.fasta & {nama_custom}_MultiFASTA_For_MEGA.fasta (bisa digunakan untuk MEGA maupun DnaSP)")
+        multi_dnasp = os.path.join(out_folder, f"{prefix_multi}MultiFASTA_For_DnaSP.fasta") if out_folder else f"{prefix_multi}MultiFASTA_For_DnaSP.fasta"
+        multi_mega = os.path.join(out_folder, f"{prefix_multi}MultiFASTA_For_MEGA.fasta") if out_folder else f"{prefix_multi}MultiFASTA_For_MEGA.fasta"
+        SeqIO.write(koleksi_fasta_iupac, multi_dnasp, "fasta")
+        SeqIO.write(koleksi_fasta_pseudo, multi_mega, "fasta")
+        print(f"  -> Gabungan IUPAC: {os.path.basename(multi_dnasp)} & {os.path.basename(multi_mega)}")
         
     semua_rekaman = koleksi_fasta_tunggal + koleksi_fasta_iupac
     if semua_rekaman:
-        SeqIO.write(semua_rekaman, f"{nama_custom}_MultiFASTA_Final.fasta", "fasta")
-        print(f"  -> Gabungan Tunggal: {nama_custom}_MultiFASTA_Final.fasta (bisa digunakan untuk MEGA maupun DnaSP)")
+        multi_final = os.path.join(out_folder, f"{prefix_multi}MultiFASTA_Final.fasta") if out_folder else f"{prefix_multi}MultiFASTA_Final.fasta"
+        SeqIO.write(semua_rekaman, multi_final, "fasta")
+        print(f"  -> Gabungan Tunggal: {os.path.basename(multi_final)}")
             
     if semua_laporan_mismatch:
-        out_report = "Mismatch_Alignment_Report.txt"
+        out_report = os.path.join(out_folder, "Mismatch_Alignment_Report.txt") if out_folder else "Mismatch_Alignment_Report.txt"
         with open(out_report, "w", encoding="utf-8") as f:
             f.write("".join(semua_laporan_mismatch))
-        analyze_report_with_ai(out_report)
+        analyze_report_with_ai(out_report, out_folder)
+
+    # Penahan Layar agar program tidak tertutup otomatis
+    input(f"\n{WARNA_BIRU}Proses selesai. Tekan Enter untuk keluar...{RESET_WARNA}")
 
 if __name__ == '__main__':
     main()
