@@ -3,7 +3,7 @@
 ⚠️ **BETA VERSION - TEST PURPOSES ONLY**
 Saat ini, ChromaForge masih berada dalam tahap pengujian beta (Beta Testing). Harap TIDAK menggunakan hasil perakitan skrip ini untuk pengolahan data primer pada skripsi, tesis, disertasi, atau publikasi jurnal hingga versi stabil (stable release) dirilis. Gunakan hanya untuk keperluan uji coba algoritma.
 
-For English speakers, please refer to the comprehensive ChromaForge_Documentation_English.pdf included in this repository.
+**For English speakers, please refer to the comprehensive ChromaForge_Documentation_English.pdf included in this repository.**
 
 ---
 
